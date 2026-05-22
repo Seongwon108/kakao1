@@ -51,6 +51,39 @@
             color: #212529;
             border-bottom: 3px solid #fee500; 
         }
+        
+        /* ✨ 새로 추가된 키워드 검색창 스타일 */
+        .search-box-container {
+            padding: 12px;
+            background-color: #ffffff;
+            border-bottom: 1px solid #dee2e6;
+            display: flex;
+            gap: 6px;
+        }
+        .search-input {
+            flex: 1;
+            padding: 8px 12px;
+            font-size: 14px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            outline: none;
+        }
+        .search-input:focus {
+            border-color: #fee500;
+        }
+        .search-button {
+            padding: 8px 14px;
+            background-color: #fee500;
+            border: 1px solid #e2cb00;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 13px;
+            cursor: pointer;
+        }
+        .search-button:hover {
+            background-color: #fada00;
+        }
+
         .result-list {
             flex: 1;
             overflow-y: auto;
@@ -129,20 +162,31 @@
             border-color: #ffffff transparent transparent;
         }
     </style>
+    <!-- 카카오 지도를 가져오기 위한 스크립트 -->
     <script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=a9f1fed1451c1938e05ae1dbae763e15
 &libraries=services"></script>
 </head>
 <body>
 
     <div class="container">
+        <!-- 왼쪽 사이드바 -->
         <div class="sidebar">
             <div class="tab-container">
-                <button id="tabSearch" class="tab-button active" onclick="changeCategory('CS2', 'tabSearch')">검색기능 (편의점)</button>
-                <button id="tabDistance" class="tab-button" onclick="changeCategory('HP8', 'tabDistance')">거리 순 나열 (병원)</button>
+                <!-- ✨ 탭 텍스트 및 목적 변경 -->
+                <button id="tabSearch" class="tab-button active" onclick="changeTab('search', 'tabSearch')">자유 키워드 검색</button>
+                <button id="tabDistance" class="tab-button" onclick="changeTab('police', 'tabDistance')">거리순 나열 (경찰서)</button>
             </div>
+            
+            <!-- ✨ 새로 추가된 키워드 입력 영역 (기본적으로 노출됨) -->
+            <div id="searchBoxContainer" class="search-box-container">
+                <input type="text" id="keywordInput" class="search-input" placeholder="검색할 장소를 입력하세요 (예: 편의점, CU)" onkeydown="if(event.keyCode==13) executeSearch()">
+                <button class="search-button" onclick="executeSearch()">검색</button>
+            </div>
+
             <div id="resultList" class="result-list"></div>
         </div>
 
+        <!-- 오른쪽 지도 영역 -->
         <div id="map" class="map-area"></div>
     </div>
 
@@ -156,8 +200,10 @@
         let userMarker = null; 
         let activeMarkers = []; 
         let activeOverlay = null; 
-        let selectedCategory = 'CS2'; 
-        let currentPlaces = []; // ✨ 검색된 장소 데이터를 보관할 배열 추가
+        let currentPlaces = []; 
+        
+        // ✨ 탭 상태 관리용 변수 ('search' 또는 'police')
+        let currentMode = 'search'; 
 
         const blueMarkerImageSrc = 'https://t1.daumcdn.net/localimg/localimages/07/mapapidoc/marker_blue.png'; 
         const redMarkerImageSrc = 'https://t1.daumcdn.net/localimg/localimages/07/mapapidoc/markerStar.png'; 
@@ -188,17 +234,17 @@
 
                     map.setCenter(userLocationLatLng);
                     displayUserMarker();
-                    fetchSafeZones();
+                    fetchData(); // 지도 설정 완료 후 모드에 맞춰 데이터 패치
                 }, function(error) {
                     alert('현재 위치를 가져올 수 없어 기본 위치로 탐색합니다.');
                     userLocationLatLng = new kakao.maps.LatLng(userLatitude, userLongitude);
                     displayUserMarker();
-                    fetchSafeZones();
+                    fetchData();
                 });
             } else {
                 userLocationLatLng = new kakao.maps.LatLng(userLatitude, userLongitude);
                 displayUserMarker();
-                fetchSafeZones();
+                fetchData();
             }
         }
 
@@ -218,25 +264,54 @@
             });
         }
 
-        function fetchSafeZones() {
+        // ✨ 핵심: 모드에 따라 알맞은 API를 호출하는 마스터 함수
+        function fetchData() {
             clearActiveMarkers();
             if (activeOverlay !== null) {
                 activeOverlay.setMap(null);
             }
 
-            placeService.categorySearch(selectedCategory, searchCallback, {
-                location: userLocationLatLng,
-                radius: 2000,
-                sort: kakao.maps.services.SortBy.ACCURACY 
-            });
+            if (currentMode === 'search') {
+                // 1) 자유 검색 모드: 사용자가 입력한 텍스트 기준 검색
+                const keyword = document.getElementById('keywordInput').value.trim();
+                if (!keyword) {
+                    document.getElementById('resultList').innerHTML = '<div style="padding:15px; color:#666;">검색어를 입력창에 넣고 검색을 진행해주세요.</div>';
+                    return;
+                }
+                
+                // 키워드 검색 API 호출 (정확도 순)
+                placeService.keywordSearch(keyword, searchCallback, {
+                    location: userLocationLatLng,
+                    radius: 2000
+                });
+
+            } else if (currentMode === 'police') {
+                // 2) 경찰서 거리순 모드: PO5(공공기관) 카테고리 중 '경찰서' 키워드 지정 탐색
+                // 거리순(DISTANCE) 정렬 옵션 필수 적용
+                placeService.keywordSearch('경찰서', searchCallback, {
+                    location: userLocationLatLng,
+                    radius: 3000, // 탐색 범위 3km로 확장
+                    sort: kakao.maps.services.SortBy.DISTANCE 
+                });
+            }
+        }
+
+        // 키워드 검색창에서 엔터나 버튼을 누르면 강제 데이터 패치 실행
+        function executeSearch() {
+            if (currentMode !== 'search') {
+                // 만약 경찰서 탭에 있다가 검색어를 치면 자동으로 검색 탭으로 전환해주는 편의성 코드
+                changeTab('search', 'tabSearch');
+            } else {
+                fetchData();
+            }
         }
 
         function searchCallback(data, status, pagination) {
             if (status === kakao.maps.services.Status.OK) {
                 renderPlaceList(data);
             } else if (status === kakao.maps.services.Status.ZERO_RESULT) {
-                document.getElementById('resultList').innerHTML = '<div style="padding:15px; color:#666;">주변에 안전 구역 정보가 없습니다.</div>';
-                currentPlaces = []; // 결과가 없을 때는 비워줌
+                document.getElementById('resultList').innerHTML = '<div style="padding:15px; color:#666;">주변에 조건에 맞는 정보가 없습니다.</div>';
+                currentPlaces = [];
             } else {
                 alert('데이터를 가져오는 중 오류가 발생했습니다.');
             }
@@ -247,7 +322,7 @@
             let listContentHtml = '';
             const mapBounds = new kakao.maps.LatLngBounds();
 
-            currentPlaces = places; // ✨ 전역 변수에 현재 보여지는 데이터 동기화
+            currentPlaces = places; 
 
             mapBounds.extend(userLocationLatLng);
 
@@ -257,7 +332,6 @@
                 createSafeMarker(placeLatLng, places[i]);
                 mapBounds.extend(placeLatLng);
 
-                // ✨ onclick 함수 호출 시 매개변수를 index 하나만 넘기도록 간소화
                 listContentHtml += `
                     <div class="result-item" onclick="panToPlace(${i})">
                         <div class="place-name">${places[i].place_name}</div>
@@ -296,7 +370,7 @@
             const overlayContent = `
                 <div class="custom-overlay">
                     <div class="title">${placeData.place_name}</div>
-                    <div class="info">영업시간: 링크 참조 (클릭)</div>
+                    <div class="info">분류: ${placeData.category_name.split(' > ').pop()}</div>
                     <a href="${placeData.place_url}" target="_blank" class="link">카카오맵에서 상세 보기 →</a>
                 </div>
             `;
@@ -318,30 +392,42 @@
             activeMarkers = [];
         }
 
-        // ✨ 수정된 리스트 아이템 클릭 함수
         function panToPlace(index) {
             const place = currentPlaces[index];
             if (!place) return;
 
             const destinationLatLng = new kakao.maps.LatLng(place.y, place.x);
-            
-            // 지도 중심 이동
             map.panTo(destinationLatLng);
-
-            // 추가 네트워킹(API 요청) 없이 기존 데이터로 즉시 오버레이 출력
             showOverlay(place, destinationLatLng);
         }
 
-        function changeCategory(categoryCode, tabId) {
-            selectedCategory = categoryCode;
+        // ✨ 탭 전환 함수 대폭 수정
+        function changeTab(mode, tabId) {
+            currentMode = mode;
 
+            // 탭 활성화 UI 전환
             const tabButtons = document.getElementsByClassName('tab-button');
             for (let i = 0; i < tabButtons.length; i++) {
                 tabButtons[i].classList.remove('active');
             }
             document.getElementById(tabId).classList.add('active');
 
-            fetchSafeZones();
+            // UI 제어: 검색 모드일 때만 안내 텍스트 변경 처리 혹은 검색 인풋창 포커싱
+            const searchBox = document.getElementById('searchBoxContainer');
+            const keywordInput = document.getElementById('keywordInput');
+            
+            if (mode === 'search') {
+                keywordInput.disabled = false;
+                keywordInput.placeholder = "검색할 장소를 입력하세요 (예: 편의점, CU)";
+                keywordInput.focus();
+            } else if (mode === 'police') {
+                keywordInput.disabled = true;
+                keywordInput.placeholder = "🚨 현재 경찰서 거리순 정렬 상태입니다.";
+                keywordInput.value = ""; // 입력값 초기화
+            }
+
+            // 바뀐 모드로 데이터 새로 로딩
+            fetchData();
         }
     </script>
 </body>
