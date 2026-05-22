@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>중고 거래 안전 구역 지도</title>
     <style>
-        /* 기본 스타일 초기화 및 화면 전체 사용 설정 */
         * {
             margin: 0;
             padding: 0;
@@ -16,15 +15,11 @@
             height: 100%;
             font-family: 'Malgun Gothic', dotum, sans-serif;
         }
-
-        /* 화면을 왼쪽과 오른쪽으로 2분할하는 컨테이너 */
         .container {
             display: flex;
             width: 100%;
             height: 100%;
         }
-
-        /* 왼쪽 사이드바 (탭 + 검색 결과 리스트) */
         .sidebar {
             width: 350px;
             height: 100%;
@@ -34,8 +29,6 @@
             flex-direction: column;
             z-index: 10;
         }
-
-        /* 탭 메뉴 스타일 */
         .tab-container {
             display: flex;
             background-color: #ffffff;
@@ -56,10 +49,8 @@
         .tab-button.active {
             background-color: #ffffff;
             color: #212529;
-            border-bottom: 3px solid #fee500; /* 카카오 시그니처 옐로우 */
+            border-bottom: 3px solid #fee500; 
         }
-
-        /* 검색 결과 리스트 영역 (스크롤 가능) */
         .result-list {
             flex: 1;
             overflow-y: auto;
@@ -91,14 +82,10 @@
             color: #007bff;
             margin-top: 4px;
         }
-
-        /* 오른쪽 지도 영역 */
         .map-area {
             flex: 1;
             height: 100%;
         }
-
-        /* 커스텀 말풍선(오버레이) 스타일 */
         .custom-overlay {
             position: relative;
             bottom: 50px;
@@ -129,7 +116,6 @@
         .custom-overlay .link:hover {
             text-decoration: underline;
         }
-        /* 말풍선 꼬리표 */
         .custom-overlay:after {
             content: '';
             position: absolute;
@@ -143,24 +129,19 @@
             border-color: #ffffff transparent transparent;
         }
     </style>
-    <!-- 카카오 지도를 가져오기 위한 스크립트 (services 라이브러리 추가 필수) -->
     <script type="text/javascript" src="//dapi.kakao.com/v2/maps/sdk.js?appkey=YOUR_KAKAO_MAPS_API_KEY&libraries=services"></script>
 </head>
 <body>
 
     <div class="container">
-        <!-- 왼쪽 사이드바 -->
         <div class="sidebar">
-            <!-- 탭 구성 생성 -->
             <div class="tab-container">
                 <button id="tabSearch" class="tab-button active" onclick="changeCategory('CS2', 'tabSearch')">검색기능 (편의점)</button>
                 <button id="tabDistance" class="tab-button" onclick="changeCategory('HP8', 'tabDistance')">거리 순 나열 (병원)</button>
             </div>
-            <!-- 결과 리스트 -->
             <div id="resultList" class="result-list"></div>
         </div>
 
-        <!-- 오른쪽 지도 영역 -->
         <div id="map" class="map-area"></div>
     </div>
 
@@ -168,24 +149,22 @@
         // 전역 변수 설정
         let map;
         let placeService;
-        let userLatitude = 37.566826; // 현재 위도 기본값 (서울시청)
-        let userLongitude = 126.9786567; // 현재 경도 기본값
+        let userLatitude = 37.566826; 
+        let userLongitude = 126.9786567; 
         let userLocationLatLng;
-        let userMarker = null; // 내 위치 마커 객체
-        let activeMarkers = []; // 지도에 표시된 안전 구역 마커 배열
-        let activeOverlay = null; // 현재 지도에 열려있는 커스텀 오버레이
-        let selectedCategory = 'CS2'; // 현재 선택된 카테고리 코드 (기본값: 편의점)
+        let userMarker = null; 
+        let activeMarkers = []; 
+        let activeOverlay = null; 
+        let selectedCategory = 'CS2'; 
+        let currentPlaces = []; // ✨ 검색된 장소 데이터를 보관할 배열 추가
 
-        // 마커 이미지 경로 (기본 제공 이미지 주소)
-        const blueMarkerImageSrc = 'https://t1.daumcdn.net/localimg/localimages/07/mapapidoc/marker_blue.png'; // 내 위치 (파란색)
-        const redMarkerImageSrc = 'https://t1.daumcdn.net/localimg/localimages/07/mapapidoc/markerStar.png'; // 안전 구역 (빨간색)
+        const blueMarkerImageSrc = 'https://t1.daumcdn.net/localimg/localimages/07/mapapidoc/marker_blue.png'; 
+        const redMarkerImageSrc = 'https://t1.daumcdn.net/localimg/localimages/07/mapapidoc/markerStar.png'; 
 
-        // 페이지 로딩 완료 후 실행
         window.onload = function() {
             initMap();
         };
 
-        // 지도 초기 설정
         function initMap() {
             const mapContainer = document.getElementById('map');
             const mapOptions = {
@@ -196,11 +175,9 @@
             map = new kakao.maps.Map(mapContainer, mapOptions);
             placeService = new kakao.maps.services.Places();
 
-            // 기기 GPS 위치 가져오기
             getUserLocation();
         }
 
-        // 현재 사용자 위치(Geolocation) 받아오기
         function getUserLocation() {
             if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition(function(position) {
@@ -208,13 +185,8 @@
                     userLongitude = position.coords.longitude;
                     userLocationLatLng = new kakao.maps.LatLng(userLatitude, userLongitude);
 
-                    // 지도 중심 이동
                     map.setCenter(userLocationLatLng);
-                    
-                    // 내 위치 파란색 마커 표시
                     displayUserMarker();
-
-                    // 첫 카테고리 데이터 로드
                     fetchSafeZones();
                 }, function(error) {
                     alert('현재 위치를 가져올 수 없어 기본 위치로 탐색합니다.');
@@ -229,7 +201,6 @@
             }
         }
 
-        // 내 현재 위치에 파란색 마커 그리기
         function displayUserMarker() {
             if (userMarker !== null) {
                 userMarker.setMap(null);
@@ -246,15 +217,12 @@
             });
         }
 
-        // 카카오 API 카테고리 검색 요청
         function fetchSafeZones() {
-            // 기존 마커 및 말풍선 삭제
             clearActiveMarkers();
             if (activeOverlay !== null) {
                 activeOverlay.setMap(null);
             }
 
-            // 거리순 정렬 기본 적용하여 내 위치 중심 반경 2000m 검색
             placeService.categorySearch(selectedCategory, searchCallback, {
                 location: userLocationLatLng,
                 radius: 2000,
@@ -262,36 +230,35 @@
             });
         }
 
-        // 카테고리 결과 콜백 함수
         function searchCallback(data, status, pagination) {
             if (status === kakao.maps.services.Status.OK) {
                 renderPlaceList(data);
             } else if (status === kakao.maps.services.Status.ZERO_RESULT) {
                 document.getElementById('resultList').innerHTML = '<div style="padding:15px; color:#666;">주변에 안전 구역 정보가 없습니다.</div>';
+                currentPlaces = []; // 결과가 없을 때는 비워줌
             } else {
                 alert('데이터를 가져오는 중 오류가 발생했습니다.');
             }
         }
 
-        // 사이드바 리스트 및 지도 마커 렌더링
         function renderPlaceList(places) {
             const listContainer = document.getElementById('resultList');
             let listContentHtml = '';
             const mapBounds = new kakao.maps.LatLngBounds();
 
-            // 내 위치도 화면 영역에 포함
+            currentPlaces = places; // ✨ 전역 변수에 현재 보여지는 데이터 동기화
+
             mapBounds.extend(userLocationLatLng);
 
             for (let i = 0; i < places.length; i++) {
                 const placeLatLng = new kakao.maps.LatLng(places[i].y, places[i].x);
                 
-                // 빨간색 마커 찍기
                 createSafeMarker(placeLatLng, places[i]);
                 mapBounds.extend(placeLatLng);
 
-                // 리스트 아이템 HTML 빌드
+                // ✨ onclick 함수 호출 시 매개변수를 index 하나만 넘기도록 간소화
                 listContentHtml += `
-                    <div class="result-item" onclick="panToPlace('${places[i].y}', '${places[i].x}', ${i})">
+                    <div class="result-item" onclick="panToPlace(${i})">
                         <div class="place-name">${places[i].place_name}</div>
                         <div class="place-address">${places[i].road_address_name ? places[i].road_address_name : places[i].address_name}</div>
                         <div class="place-distance">내 위치로부터 ${places[i].distance}m</div>
@@ -300,12 +267,9 @@
             }
 
             listContainer.innerHTML = listContentHtml;
-            
-            // 모든 마커가 보이도록 지도 범위 맞추기
             map.setBounds(mapBounds);
         }
 
-        // 중고 거래 안전 구역 빨간색 마커 생성
         function createSafeMarker(position, placeData) {
             const imageSize = new kakao.maps.Size(24, 35);
             const markerImage = new kakao.maps.MarkerImage(redMarkerImageSrc, imageSize);
@@ -316,22 +280,18 @@
                 image: markerImage
             });
 
-            // 마커 배열에 기록 유지
             activeMarkers.push(marker);
 
-            // 마커 클릭 시 커스텀 말풍선(오버레이) 표출 이벤트 등록
             kakao.maps.event.addListener(marker, 'click', function() {
                 showOverlay(placeData, position);
             });
         }
 
-        // 커스텀 말풍선 띄우기
         function showOverlay(placeData, position) {
             if (activeOverlay !== null) {
                 activeOverlay.setMap(null);
             }
 
-            // 영업시간은 API 미제공 항목이므로 카카오맵 링크 클릭을 유도하도록 구성
             const overlayContent = `
                 <div class="custom-overlay">
                     <div class="title">${placeData.place_name}</div>
@@ -350,7 +310,6 @@
             activeOverlay.setMap(map);
         }
 
-        // 기존 안전 구역 마커 정리 제거
         function clearActiveMarkers() {
             for (let i = 0; i < activeMarkers.length; i++) {
                 activeMarkers[i].setMap(null);
@@ -358,31 +317,29 @@
             activeMarkers = [];
         }
 
-        // 사이드바 아이템 클릭 시 해당 위치 포커싱 및 정보창 활성화
-        function panToPlace(lat, lng, index) {
-            const destinationLatLng = new kakao.maps.LatLng(lat, lng);
+        // ✨ 수정된 리스트 아이템 클릭 함수
+        function panToPlace(index) {
+            const place = currentPlaces[index];
+            if (!place) return;
+
+            const destinationLatLng = new kakao.maps.LatLng(place.y, place.x);
+            
+            // 지도 중심 이동
             map.panTo(destinationLatLng);
 
-            // 해당 마커 클릭 이벤트 강제 트리거 효과 연출을 위한 다시 검색 메커니즘 또는 다이렉트 바인딩 대체
-            placeService.categorySearch(selectedCategory, function(data, status) {
-                if (status === kakao.maps.services.Status.OK) {
-                    showOverlay(data[index], destinationLatLng);
-                }
-            }, { location: userLocationLatLng, radius: 2000 });
+            // 추가 네트워킹(API 요청) 없이 기존 데이터로 즉시 오버레이 출력
+            showOverlay(place, destinationLatLng);
         }
 
-        // 탭 버튼 클릭 시 카테고리 전환 처리
         function changeCategory(categoryCode, tabId) {
             selectedCategory = categoryCode;
 
-            // 탭 스타일 활성화 토글
             const tabButtons = document.getElementsByClassName('tab-button');
             for (let i = 0; i < tabButtons.length; i++) {
                 tabButtons[i].classList.remove('active');
             }
             document.getElementById(tabId).classList.add('active');
 
-            // 바뀐 카테고리로 새로운 데이터 패치
             fetchSafeZones();
         }
     </script>
